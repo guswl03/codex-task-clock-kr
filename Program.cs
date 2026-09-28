@@ -17,16 +17,17 @@ internal static class Program
 
 internal sealed class ClockForm : Form
 {
-    private static readonly Color Background = Color.FromArgb(14, 20, 34);
-    private static readonly Color Card = Color.FromArgb(25, 35, 55);
-    private static readonly Color Muted = Color.FromArgb(157, 172, 195);
-    private static readonly Color Accent = Color.FromArgb(91, 211, 187);
-    private static readonly Color White = Color.FromArgb(242, 248, 255);
+    private static readonly Color Background = Color.White;
+    private static readonly Color Card = Color.FromArgb(249, 249, 247);
+    private static readonly Color Border = Color.FromArgb(225, 225, 221);
+    private static readonly Color Muted = Color.FromArgb(105, 108, 112);
+    private static readonly Color Accent = Color.FromArgb(68, 124, 216);
+    private static readonly Color Ink = Color.FromArgb(34, 35, 36);
 
     private readonly SessionStore store = new SessionStore(SessionStore.DefaultRoot());
     private readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+    private readonly ToolTip titleTip = new ToolTip();
     private readonly Label heading = new Label();
-    private readonly Label caption = new Label();
     private readonly Button refreshButton = new Button();
     private readonly CheckBox topCheck = new CheckBox();
     private readonly CheckBox privacyCheck = new CheckBox();
@@ -40,7 +41,6 @@ internal sealed class ClockForm : Form
     private readonly Label activity = new Label();
     private readonly Label listHeading = new Label();
     private readonly FlowLayoutPanel recentList = new FlowLayoutPanel();
-    private readonly Label footnote = new Label();
     private readonly Label refreshed = new Label();
     private SessionOverview overview;
     private bool loading;
@@ -49,27 +49,31 @@ internal sealed class ClockForm : Form
 
     public ClockForm()
     {
-        Text = "코덱스 작업 시계";
+        Text = "코덱스 시계";
+        var appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if (appIcon != null) Icon = appIcon;
         BackColor = Background;
-        ForeColor = White;
-        Font = new Font("맑은 고딕", 10f);
-        ClientSize = new Size(472, 574);
-        MinimumSize = new Size(440, 540);
+        ForeColor = Ink;
+        Font = new Font("맑은 고딕", 8f);
+        AutoScaleMode = AutoScaleMode.None;
+        ClientSize = new Size(340, 380);
+        MinimumSize = new Size(330, 390);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = false;
         DoubleBuffered = true;
 
-        Style(heading, 19f, FontStyle.Bold, White);
+        Style(heading, 10f, FontStyle.Bold, Ink);
         heading.Text = "코덱스 작업 시계";
-        Style(caption, 9f, FontStyle.Regular, Muted);
-        caption.Text = "내 컴퓨터의 작업 기록을 확인해요";
 
         refreshButton.Text = "새로고침";
+        refreshButton.Font = new Font("맑은 고딕", 8f);
         refreshButton.FlatStyle = FlatStyle.Flat;
-        refreshButton.FlatAppearance.BorderColor = Color.FromArgb(70, 88, 111);
-        refreshButton.BackColor = Color.FromArgb(33, 46, 68);
-        refreshButton.ForeColor = White;
+        refreshButton.FlatAppearance.BorderColor = Border;
+        refreshButton.FlatAppearance.MouseOverBackColor = Card;
+        refreshButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(241, 241, 239);
+        refreshButton.BackColor = Background;
+        refreshButton.ForeColor = Ink;
         refreshButton.Cursor = Cursors.Hand;
         refreshButton.Click += (sender, args) => RefreshData();
 
@@ -81,36 +85,40 @@ internal sealed class ClockForm : Form
         privacyCheck.CheckedChanged += (sender, args) => Render();
 
         mainCard.BackColor = Card;
-        Style(status, 10f, FontStyle.Bold, Accent);
-        Style(taskTitle, 13f, FontStyle.Bold, White);
+        mainCard.Paint += (sender, args) => {
+            using (var pen = new Pen(Border))
+                args.Graphics.DrawRectangle(pen, 0, 0, mainCard.ClientSize.Width - 1, mainCard.ClientSize.Height - 1);
+        };
+        Style(status, 7.5f, FontStyle.Bold, Accent);
+        Style(taskTitle, 9.5f, FontStyle.Bold, Ink);
         taskTitle.AutoEllipsis = true;
-        Style(elapsedTitle, 9f, FontStyle.Regular, Muted);
-        elapsedTitle.Text = "지금까지 걸린 시간";
-        Style(elapsedValue, 29f, FontStyle.Bold, White);
-        Style(etaTitle, 9f, FontStyle.Regular, Muted);
-        etaTitle.Text = "남은 시간 · 참고용";
-        Style(etaValue, 12f, FontStyle.Bold, Accent);
-        Style(activity, 9f, FontStyle.Regular, Muted);
+        Style(elapsedTitle, 7f, FontStyle.Regular, Muted);
+        elapsedTitle.Text = "경과";
+        Style(elapsedValue, 18f, FontStyle.Bold, Ink);
+        Style(etaTitle, 7f, FontStyle.Regular, Muted);
+        etaTitle.Text = "남은 시간 · 추정";
+        Style(etaValue, 9f, FontStyle.Regular, Ink);
+        etaValue.AutoEllipsis = true;
+        Style(activity, 7f, FontStyle.Regular, Muted);
         activity.AutoEllipsis = true;
         mainCard.Controls.AddRange(new Control[] {
             status, taskTitle, elapsedTitle, elapsedValue, etaTitle, etaValue, activity
         });
 
-        Style(listHeading, 11f, FontStyle.Bold, White);
-        listHeading.Text = "최근 작업 · 누르면 자세히 보기";
+        Style(listHeading, 8f, FontStyle.Bold, Ink);
+        listHeading.Text = "최근 작업";
         recentList.FlowDirection = FlowDirection.TopDown;
         recentList.WrapContents = false;
         recentList.AutoScroll = true;
         recentList.BackColor = Background;
         recentList.Padding = new Padding(0);
-        Style(footnote, 8.5f, FontStyle.Regular, Muted);
-        footnote.Text = "남은 시간은 지난 완료 작업을 바탕으로 한 참고치예요.";
-        Style(refreshed, 8.5f, FontStyle.Regular, Muted);
+        Style(refreshed, 7f, FontStyle.Regular, Muted);
 
         Controls.AddRange(new Control[] {
-            heading, caption, refreshButton, topCheck, privacyCheck, mainCard,
-            listHeading, recentList, footnote, refreshed
+            heading, refreshButton, topCheck, privacyCheck, mainCard,
+            listHeading, recentList, refreshed
         });
+        FormClosed += (sender, args) => titleTip.Dispose();
         Resize += (sender, args) => Arrange();
         Arrange();
 
@@ -131,25 +139,25 @@ internal sealed class ClockForm : Form
 
     private void Arrange()
     {
-        var width = ClientSize.Width - 40;
-        heading.SetBounds(20, 17, width - 95, 31);
-        caption.SetBounds(20, 49, width - 95, 21);
-        refreshButton.SetBounds(ClientSize.Width - 108, 20, 88, 33);
-        topCheck.SetBounds(ClientSize.Width - 102, 57, 83, 25);
-        privacyCheck.SetBounds(ClientSize.Width - 213, 57, 100, 25);
-        mainCard.SetBounds(20, 92, width, 250);
-        status.SetBounds(18, 13, width - 36, 25);
-        taskTitle.SetBounds(18, 41, width - 36, 34);
-        elapsedTitle.SetBounds(18, 82, width - 36, 24);
-        elapsedValue.SetBounds(18, 106, width - 36, 55);
-        etaTitle.SetBounds(18, 165, width - 36, 21);
-        etaValue.SetBounds(18, 187, width - 36, 29);
-        activity.SetBounds(18, 219, width - 36, 23);
-        listHeading.SetBounds(20, 351, width, 25);
-        recentList.SetBounds(20, 380, width, Math.Max(90, ClientSize.Height - 447));
-        footnote.SetBounds(20, ClientSize.Height - 61, width, 22);
-        refreshed.SetBounds(20, ClientSize.Height - 38, width, 20);
-        foreach (Control row in recentList.Controls) row.Width = recentList.ClientSize.Width - 20;
+        var width = ClientSize.Width - 28;
+        var refreshWidth = Math.Max(88, TextRenderer.MeasureText(refreshButton.Text, refreshButton.Font).Width + 24);
+        var refreshLeft = ClientSize.Width - refreshWidth - 28;
+        heading.SetBounds(16, 9, refreshLeft - 24, 25);
+        refreshButton.SetBounds(refreshLeft, 10, refreshWidth, 25);
+        privacyCheck.SetBounds(16, 38, 95, 19);
+        topCheck.SetBounds(120, 38, 80, 19);
+        mainCard.SetBounds(14, 63, width, 177);
+        status.SetBounds(12, 7, width - 24, 18);
+        taskTitle.SetBounds(12, 27, width - 24, 23);
+        elapsedTitle.SetBounds(12, 54, width - 24, 16);
+        elapsedValue.SetBounds(12, 70, width - 24, 42);
+        etaTitle.SetBounds(12, 114, width - 24, 16);
+        etaValue.SetBounds(12, 131, width - 24, 23);
+        activity.SetBounds(12, 155, width - 24, 17);
+        listHeading.SetBounds(14, 247, width, 18);
+        recentList.SetBounds(14, 269, width, Math.Max(0, ClientSize.Height - 295));
+        refreshed.SetBounds(14, ClientSize.Height - 21, width, 16);
+        foreach (Control row in recentList.Controls) row.Width = recentList.ClientSize.Width - 18;
     }
 
     private void RefreshData()
@@ -177,10 +185,11 @@ internal sealed class ClockForm : Form
 
     private void Render()
     {
+        titleTip.SetToolTip(taskTitle, "");
         if (loadError != null)
         {
-            status.Text = "기록을 읽지 못했어요";
-            taskTitle.Text = "새로고침을 눌러 다시 시도하세요";
+            status.Text = "읽기 실패";
+            taskTitle.Text = "새로고침을 눌러 주세요";
             elapsedValue.Text = "—";
             etaValue.Text = "확인할 수 없어요";
             activity.Text = loadError;
@@ -188,8 +197,8 @@ internal sealed class ClockForm : Form
         }
         if (overview == null)
         {
-            status.Text = "기록 읽는 중";
-            taskTitle.Text = "잠시만 기다려 주세요";
+            status.Text = "확인 중";
+            taskTitle.Text = "기록 읽는 중";
             elapsedValue.Text = "—";
             etaValue.Text = "계산 중";
             activity.Text = "";
@@ -197,13 +206,13 @@ internal sealed class ClockForm : Form
         }
         if (overview.Recent.Count == 0)
         {
-            status.Text = "표시할 기록이 없어요";
-            taskTitle.Text = "코덱스에서 작업을 시작해 주세요";
+            status.Text = "기록 없음";
+            taskTitle.Text = "코덱스 작업이 없어요";
             elapsedValue.Text = "—";
-            etaValue.Text = "기록이 쌓이면 표시돼요";
-            activity.Text = "로컬 세션 파일을 찾고 있어요";
+            etaValue.Text = "비교 기록 부족";
+            activity.Text = "로컬 기록 확인 중";
             recentList.Controls.Clear();
-            refreshed.Text = "마지막 확인: " + DateTime.Now.ToString("HH:mm:ss");
+            refreshed.Text = DateTime.Now.ToString("HH:mm") + " 갱신";
             return;
         }
 
@@ -219,50 +228,52 @@ internal sealed class ClockForm : Form
         status.Text = primary.IsActive
             ? (inactive >= TimeSpan.FromMinutes(10) ? "진행 상태 확인 필요" : "진행 중")
             : "완료";
-        status.ForeColor = primary.IsActive ? Accent : Color.FromArgb(123, 171, 232);
+        status.ForeColor = primary.IsActive ? Accent : Muted;
         taskTitle.Text = privacyCheck.Checked ? "제목 숨김" : primary.Title;
+        titleTip.SetToolTip(taskTitle, taskTitle.Text);
         var elapsed = primary.IsActive && primary.StartedAtUtc.HasValue
             ? now - primary.StartedAtUtc.Value
             : primary.CompletedDurations.LastOrDefault();
         if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
-        elapsedTitle.Text = primary.IsActive ? "지금까지 걸린 시간" : "마지막 작업에 걸린 시간";
+        elapsedTitle.Text = primary.IsActive ? "경과" : "소요";
         elapsedValue.Text = FormatDuration(elapsed);
-        etaTitle.Text = "남은 시간 · 참고용";
+        etaTitle.Text = "남은 시간 · 추정";
         if (primary.IsActive)
         {
             var estimate = TimeEstimate.FromHistory(elapsed, overview.HistoricalDurations);
-            if (estimate.IsConditional) etaTitle.Text = "비슷하게 오래 걸린 작업 기준 · 참고용";
-            etaValue.Text = estimate.HasRange
-                ? "약 " + FormatMinutes(estimate.MinRemaining) + " ~ " + FormatMinutes(estimate.MaxRemaining)
+            if (estimate.IsConditional) etaTitle.Text = "오래 걸린 기록 기준 · 추정";
+            etaValue.Text = estimate.HasEstimate
+                ? "약 " + FormatMinutes(estimate.Remaining)
                 : estimate.ExceededTypicalRange
-                    ? "평소 범위 초과 · 예측 어려움" : "비슷한 완료 기록이 부족해요";
+                    ? "평소보다 길어 예측 어려움" : "비교 기록 부족";
         }
-        else etaValue.Text = "완료된 작업이에요";
-        activity.Text = "최근 활동: " + primary.LastActivity;
+        else etaValue.Text = "완료";
+        activity.Text = "최근: " + primary.LastActivity;
         RenderRecent(primary);
-        refreshed.Text = "마지막 확인: " + DateTime.Now.ToString("HH:mm:ss") + " · 내 컴퓨터에서만 확인";
+        refreshed.Text = DateTime.Now.ToString("HH:mm") + " 갱신";
     }
 
     private void RenderRecent(TaskSnapshot primary)
     {
         recentList.SuspendLayout();
-        recentList.Controls.Clear();
+        foreach (Control oldRow in recentList.Controls.Cast<Control>().ToArray()) oldRow.Dispose();
         foreach (var task in overview.Recent.Where(x => x != primary).Take(4))
         {
-            var row = new Panel { BackColor = Card, Height = 49,
-                Width = recentList.ClientSize.Width - 20, Margin = new Padding(0, 0, 0, 7) };
+            var row = new Panel { BackColor = Card, Height = 37,
+                Width = recentList.ClientSize.Width - 18, Margin = new Padding(0, 0, 0, 4) };
             var name = new Label { Text = privacyCheck.Checked ? "제목 숨김" : task.Title, AutoEllipsis = true,
-                Font = new Font("맑은 고딕", 9.5f, FontStyle.Bold), ForeColor = White,
-                BackColor = Color.Transparent, Location = new Point(11, 5),
-                Size = new Size(row.Width - 22, 22) };
+                Font = new Font("맑은 고딕", 8f, FontStyle.Bold), ForeColor = Ink,
+                BackColor = Color.Transparent, Location = new Point(10, 2),
+                Size = new Size(row.Width - 20, 18), Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top };
             var duration = task.IsActive && task.StartedAtUtc.HasValue
                 ? DateTime.UtcNow - task.StartedAtUtc.Value : task.CompletedDurations.LastOrDefault();
             var detail = new Label { Text = (task.IsActive ? "진행 중" : "완료") + " · " + FormatDuration(duration),
-                Font = new Font("맑은 고딕", 8.5f), ForeColor = task.IsActive ? Accent : Muted,
-                BackColor = Color.Transparent, Location = new Point(11, 27),
-                Size = new Size(row.Width - 22, 17) };
+                Font = new Font("맑은 고딕", 7f), ForeColor = task.IsActive ? Accent : Muted,
+                BackColor = Color.Transparent, Location = new Point(10, 19),
+                Size = new Size(row.Width - 20, 15), Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top };
             row.Controls.Add(name);
             row.Controls.Add(detail);
+            titleTip.SetToolTip(name, name.Text);
             row.Cursor = Cursors.Hand;
             name.Cursor = Cursors.Hand;
             detail.Cursor = Cursors.Hand;
@@ -274,6 +285,16 @@ internal sealed class ClockForm : Form
             recentList.Controls.Add(row);
         }
         recentList.ResumeLayout();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.W))
+        {
+            Close();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private static string FormatDuration(TimeSpan duration)

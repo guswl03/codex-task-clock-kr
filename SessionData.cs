@@ -131,11 +131,10 @@ internal static class SessionParser
 
 internal sealed class TimeEstimate
 {
-    public bool HasRange { get; private set; }
+    public bool HasEstimate { get; private set; }
     public bool ExceededTypicalRange { get; private set; }
     public bool IsConditional { get; private set; }
-    public TimeSpan MinRemaining { get; private set; }
-    public TimeSpan MaxRemaining { get; private set; }
+    public TimeSpan Remaining { get; private set; }
 
     public static TimeEstimate FromHistory(TimeSpan elapsed, IList<TimeSpan> history)
     {
@@ -144,23 +143,16 @@ internal sealed class TimeEstimate
         var sorted = history.Where(x => x >= TimeSpan.FromSeconds(30) && x <= TimeSpan.FromHours(4))
             .OrderBy(x => x).ToArray();
         if (sorted.Length < 5) return result;
-        var low = Percentile(sorted, 0.25);
         var high = Percentile(sorted, 0.75);
-        if (elapsed >= high)
+        var longer = sorted.Where(x => x > elapsed).ToArray();
+        if (longer.Length < 3)
         {
-            var longer = sorted.Where(x => x > elapsed).ToArray();
-            if (longer.Length < 5)
-            {
-                result.ExceededTypicalRange = true;
-                return result;
-            }
-            low = Percentile(longer, 0.25);
-            high = Percentile(longer, 0.75);
-            result.IsConditional = true;
+            result.ExceededTypicalRange = elapsed >= high;
+            return result;
         }
-        result.HasRange = true;
-        result.MinRemaining = elapsed < low ? low - elapsed : TimeSpan.Zero;
-        result.MaxRemaining = high - elapsed;
+        result.HasEstimate = true;
+        result.IsConditional = elapsed >= high;
+        result.Remaining = Percentile(longer, 0.5) - elapsed;
         return result;
     }
 
